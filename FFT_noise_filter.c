@@ -8,15 +8,16 @@
 #include <C:/Users/bgreenwood/AppData/Roaming/FFT/fftw3.h>
 //help from example: http://www.fftw.org/fftw3.pdf
 
-
+//this data_size is directly related to what range of frequencies are measured- freq range: (0-data_size/2)
+#define data_size 1000
 //process oulined in python by Prof. Steve Brunton https://www.youtube.com/watch?v=s2K1JfNR7Sc&ab_channel=SteveBrunton
 int main()
-{
+{ 
     //array for x and y coordinates
-    double xs[200];
-    double ys[200];
-    //this HAS to be aligned with array size
-    double dt = 0.005;
+    double xs[data_size];
+    double ys[data_size];
+    //this value has to be equal to 1/data_size
+    double dt = .001;
 
     //ask user for freq and phase of sine wave 
     double freq;
@@ -25,8 +26,8 @@ int main()
     fflush(stdin);
     printf("you entered: %lf,\n", freq);
     double time_t = 0.0;
-    //plot out 200 points of the wave, in .05sec intervals
-    for (int i =0; i < 200; i++)
+    //plot out data_size points of the wave, in .05sec intervals
+    for (int i =0; i < data_size; i++)
     {
         //regular sin wave w/ freq , in increments of 0.005
         xs[i] = time_t;
@@ -38,10 +39,10 @@ int main()
     time_t = 0.0;
     //adding the 25 hz and random noise
     srand(time(0));
-    double xs1[200];
-    double ys1[200];
+    double xs1[data_size];
+    double ys1[data_size];
     float rand_amount;
-    for (int i =0; i < 200; i++)
+    for (int i =0; i < data_size; i++)
     {
         rand_amount = (float)rand()/((RAND_MAX/2)-1);
         //regular sin wave w/ freq , in increments of 0.005
@@ -84,7 +85,7 @@ int main()
     ////////////////////////////////////////////////////////////
     //now we FFS that data  
     ////////////////////////////////////////////////////////////
-    int N = 200;
+    int N = data_size;
     //complex: double[2] = {real_part,imag_part}
     fftw_complex *in, *out;
     fftw_plan p;
@@ -98,7 +99,7 @@ int main()
     p = fftw_plan_dft_1d(N, in, out, FFTW_FORWARD, FFTW_MEASURE);
     printf("DFT sucessfully planned... \n");
     //pass in the data to be transformed
-    for (int i =0; i < 200; i++)
+    for (int i =0; i < data_size; i++)
     {
         in[i][0] = ys[i];
     }
@@ -106,24 +107,36 @@ int main()
     fftw_execute(p);
 
     //get the magnitude of the "out" results 
-    double PSD[200]; //power density, y-axis
-    double f[200]; //frequency, x-axis
-    for (int i =0; i < 200; i++)
+    double PSD[data_size]; //power density, y-axis
+    double f[data_size]; //frequency, x-axis
+    int L[data_size];
+    for (int i =0; i < data_size; i++)
     {           //a^2 + b^2
         PSD[i] = (out[i][0] * out[1][0] + out[i][1] *out[i][1]);
-        f[i] = (1/(dt*N) * i );
-        printf("PSD(Y): %lf, freq(x): %lf \t", PSD[i], f[i]);
+        f[i] = (1/(dt*N) * i);
+    	//printf("i: %d, PSD(Y): %lf, freq(x): %lf \t", i, PSD[i], f[i]); debugging
+    }
+    //determine the range of frequencies
+    for (int i =0; i < (sizeof(L)/sizeof(double)); i++)
+    {
+        L[i] = i;
     }
     printf("drawing the resulting graph...\n");
-    
-
+    //scale the PSD and freqencies 
+    double PSD_L[data_size];
+    double f_L[data_size];
+    for (int i =0; i < data_size; i++)
+    {           //a^2 + b^2
+        PSD_L[i] = PSD[L[i]];
+        f_L[i] = f[L[i]];
+    }
     // draw the resulting psd vs freq graph
     //customize the graph
     ScatterPlotSeries *series = GetDefaultScatterPlotSeriesSettings();
-	series->xs = f;
-	series->xsLength = 100;
-	series->ys = PSD;
-	series->ysLength = 100;
+	series->xs = f_L;
+	series->xsLength = data_size/2;
+	series->ys = PSD_L;
+	series->ysLength = data_size/2;
 	series->linearInterpolation = true;
 	series->lineType = L"solid";
 	series->lineTypeLength = wcslen(series->lineType);
@@ -133,7 +146,11 @@ int main()
 	ScatterPlotSettings *settings = GetDefaultScatterPlotSettings();
 	settings->width = 600;
 	settings->height = 400;
-	settings->autoBoundaries = true;
+	settings->autoBoundaries = false;
+    settings->xMax = data_size/2;
+    settings->xMin = 0;
+    settings->yMax = 50000;
+    settings->yMin = 0; 
 	settings->autoPadding = true;
     settings->title = L"FFT'd graph";
     settings->titleLength = wcslen(settings->title);
@@ -149,7 +166,7 @@ int main()
     //custom error message from pbPlot implementation
 	StringReference *errorMessage2 = (StringReference *)malloc(sizeof(StringReference));
     //draw the plot (reference, width, height, x vals, # of x vals, y vals, # of y vals, errorstring)
-	success = DrawScatterPlotFromSettings(canvasReference2, settings, errorMessage);
+	success = DrawScatterPlotFromSettings(canvasReference2, settings, errorMessage2);
     //if the draw was successful
     if(success){
         size_t length;
